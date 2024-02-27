@@ -3,17 +3,19 @@ Speed 1 = Every Programm Zyklen
 Speed 0.5 = Alle zwei Program Zyklen
 */
 #include <SimpleCLI.h>
+#include <time.h>
 
 struct Motor {
   int stepPin; 
   int dirPin;
   float speed; // in Steps per Second
   int encoder;
+  float counter;
 };
 
-Motor xMotor = {3, 2, 0, 0};
-Motor yMotor = {5, 4, 0, 0};
-Motor zMotor = {7, 6, 0, 0};
+Motor xMotor = {2, 5, 0.0, 0, 0.0};
+Motor yMotor = {3, 6, 0.0, 0, 0.0};
+Motor zMotor = {4, 7, 0.0, 0, 0.0};
 
 
 // Create CLI Object
@@ -164,12 +166,25 @@ void setup() {
  Serial.println("Initialized");
 }
 
+
+unsigned long motorTime = 0;
+
 void loop() {
   checkSerial();
 
-  xMotor = executeMotor(xMotor);
-  yMotor = executeMotor(yMotor);
-  zMotor = executeMotor(zMotor);
+  unsigned long currentTime = micros();
+  if((currentTime-motorTime) > 500) {
+    motorTime = currentTime;
+
+
+    xMotor = executeMotor(xMotor);
+    yMotor = executeMotor(yMotor);
+    zMotor = executeMotor(zMotor);
+    delayMicroseconds(10);
+    digitalWrite(xMotor.stepPin, false);
+    digitalWrite(yMotor.stepPin, false);
+    digitalWrite(zMotor.stepPin, false);
+  }
 }
 
 
@@ -195,17 +210,12 @@ void initMotor(Motor motor) {
 
 
 Motor executeMotor(Motor motor) {
-  float speed = motor.speed;
-  if(speed < 0) {
-    digitalWrite(motor.dirPin, true);
-    speed *= -1;
-  } else {
-    digitalWrite(motor.dirPin, false);
-  }
+  motor.counter += abs(motor.speed);
+  if(motor.counter < 100.0) return motor;
+  motor.counter -= 100.0;
 
-  float digitalSpeed = motor.speed;
-  int analogSpeed = (int)(digitalSpeed * 255.0);
-  analogWrite(motor.stepPin, analogSpeed);
+  digitalWrite(motor.dirPin, motor.speed < 0);
+  digitalWrite(motor.stepPin, true);
 
   return motor;
 }

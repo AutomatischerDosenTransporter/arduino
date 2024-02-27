@@ -209,7 +209,7 @@ Motor executeMotor(Motor motor) {
   if(motor.lastActivation == 0) motor.lastActivation = millis();
   if(millis() - motor.lastActivation > 1000 && motor.speed != 0) {
     motor.speed = 0;
-    
+     
     Serial.print("& Emergency ");
     Serial.print(motor.name);
     Serial.print(" motor stop!");
