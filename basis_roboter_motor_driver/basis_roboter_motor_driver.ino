@@ -8,14 +8,18 @@ Speed 0.5 = Alle zwei Program Zyklen
 struct Motor {
   int stepPin; 
   int dirPin;
+  int limitPin;
   float speed; // in Steps per Second
   int encoder;
   float counter;
+  String axis;
+  long lastActivation;
+  bool limitActivated;
 };
 
-Motor xMotor = {2, 5, 0.0, 0, 0.0};
-Motor yMotor = {3, 6, 0.0, 0, 0.0};
-Motor zMotor = {4, 7, 0.0, 0, 0.0};
+Motor xMotor = {2, 5,  9, 0.0, 0, 0.0, "x", 0, false};
+Motor yMotor = {3, 6, 10, 0.0, 0, 0.0, "y", 0, false};
+Motor zMotor = {4, 7, 11, 0.0, 0, 0.0, "z", 0, false};
 
 
 // Create CLI Object
@@ -24,9 +28,10 @@ SimpleCLI cli;
 // PING COMMAND
 Command ping;
 void pingCallback(cmd* c) {
-    Command cmd(c); // Create wrapper object
+  Command cmd(c); // Create wrapper object
 
-    Serial.println("Pong!");
+  Serial.println("+ Pong!");
+  Serial.println("$ OK");
 }
 
 // ENCODER COMMAND
@@ -37,21 +42,19 @@ void encoderCmdCallback(cmd* c) {
   String axis = axisArgument.getValue();
 
   
-  Serial.print("+ Encoder ");
-  Serial.print(axis);
-  Serial.print(" axis is at: ");
 
   if(axis.equals("x") || axis.equals("X")) {
-      Serial.println(xMotor.encoder);
+    Serial.println("+ Encoder "+axis+" axis is at " + String(xMotor.encoder));
   } else 
   if(axis.equals("y") || axis.equals("Y")) {
-      Serial.println(yMotor.encoder);
+    Serial.println("+ Encoder "+axis+" axis is at " + String(yMotor.encoder));
   } else 
   if(axis.equals("z") || axis.equals("z")) {
-      Serial.println(zMotor.encoder);
+    Serial.println("+ Encoder "+axis+" axis is at " + String(zMotor.encoder));
   } else {
-      Serial.println(0);
-      return;
+    Serial.println("+ Unkown axis "+axis+"!");
+    Serial.println("$ ERROR");
+    return;
   }
 
   Serial.println("$ OK");
@@ -66,22 +69,22 @@ void stopCmdCallback(cmd* c) {
 
   if(axis.equals("x") || axis.equals("X")) {
       xMotor.speed = 0;
+      xMotor.lastActivation = millis();
   } else 
   if(axis.equals("y") || axis.equals("Y")) {
       yMotor.speed = 0;
+      yMotor.lastActivation = millis();
   } else 
   if(axis.equals("z") || axis.equals("z")) {
       zMotor.speed = 0;
+      zMotor.lastActivation = millis();
   } else {
-      Serial.print("+ Unkown axis: ");
-      Serial.println(axis);
+      Serial.println("+ Unkown axis "+axis+"!");
       Serial.println("$ ERROR");
       return;
   }
 
-  Serial.print("+ Stoped ");
-  Serial.print(axis);
-  Serial.println(" axis!");
+  Serial.println("+ Stopped "+ axis+" axis!");
   Serial.println("$ OK");
 }
 
@@ -97,28 +100,26 @@ void speedCmdCallback(cmd* c) {
 
   if(axis.equals("x") || axis.equals("X")) {
       xMotor.speed = speed;
+      xMotor.lastActivation = millis();
       motor = xMotor;
   } else 
   if(axis.equals("y") || axis.equals("Y")) {
       yMotor.speed = speed;
+      yMotor.lastActivation = millis();
       motor = yMotor;
   } else 
   if(axis.equals("z") || axis.equals("z")) {
       zMotor.speed = speed;
+      zMotor.lastActivation = millis();
       motor = zMotor;
   } else 
   {
-      Serial.print("+ Unkown axis: ");
-      Serial.println(axis);
+      Serial.println("+ Unkown axis "+axis+"!");
       Serial.println("$ ERROR");
       return;
   }
 
-  Serial.print("+ Set speed of ");
-  Serial.print(axis);
-  Serial.print(" axis to ");
-  Serial.print(motor.speed);
-  Serial.println(" !");
+  Serial.println("+ Set speed of "+axis+" axis to "+String(motor.speed)+" !");
   Serial.println("$ OK");
 }
 
@@ -126,23 +127,19 @@ void speedCmdCallback(cmd* c) {
 void errorCallback(cmd_error* e) {
     CommandError cmdError(e); // Create wrapper object
 
-    Serial.print("ERROR: ");
-    Serial.println(cmdError.toString());
-
+    Serial.println("+ "+cmdError.toString());
     if (cmdError.hasCommand()) {
-        Serial.print("Did you mean \"");
-        Serial.print(cmdError.getCommand().toString());
-        Serial.println("\"?");
+        Serial.println("+ Did you mean \""+cmdError.getCommand().toString()+"\"?");
     }
+    Serial.println("$ ERROR");
 }
 
 void initMotor(Motor motor);
 Motor executeMotor(Motor motor);
 
 void setup() {
-  Serial.begin(9600);
-  delay(500);
-  Serial.println("Initializing...");
+  Serial.begin(115200);
+  Serial.println("& Initializing...");
 
   ping = cli.addCmd("ping", pingCallback);
   
@@ -163,7 +160,7 @@ void setup() {
   initMotor(zMotor);
 
 
- Serial.println("Initialized");
+ Serial.println("& Initialized");
 }
 
 
@@ -194,8 +191,7 @@ void checkSerial() {
         String input = Serial.readStringUntil('\n');
 
         // Echo the user input
-        Serial.print("# ");
-        Serial.println(input);
+        Serial.println("# "+input);
 
         // Parse the user input into the CLI
         cli.parse(input);
@@ -206,10 +202,29 @@ void checkSerial() {
 void initMotor(Motor motor) {
  pinMode(motor.stepPin, OUTPUT);
  pinMode(motor.dirPin, OUTPUT);
+ pinMode(motor.limitPin, INPUT_PULLUP);
 }
 
 
 Motor executeMotor(Motor motor) {
+  if(motor.lastActivation == 0) motor.lastActivation = millis();
+  if(millis() - motor.lastActivation > 1000 && motor.speed != 0) {
+    motor.speed = 0;
+     
+    Serial.println("& Emergency "+motor.axis+" motor stop becouse of timeout!");
+  }
+
+  if(digitalRead(motor.limitPin) && !motor.limitActivated) {
+    motor.speed = 0;
+    motor.limitActivated = true;
+    Serial.println("& Emergency "+motor.axis+" motor stop becouse of limit switch!");
+  } else if(!digitalRead(motor.limitPin) && motor.limitActivated) {
+    motor.limitActivated = false;
+    Serial.println("+ Limit switch of "+motor.axis+" motor reset!");
+  } else {
+    motor.speed = 0;
+  }
+
   motor.counter += abs(motor.speed);
   if(motor.counter < 100.0) return motor;
   motor.counter -= 100.0;

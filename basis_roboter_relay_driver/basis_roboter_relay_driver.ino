@@ -26,22 +26,18 @@ void offCmdCallback(cmd* c) {
   int number = (int) numberArgument.getValue().toInt();
   if(number > relayPinsSize - 1 || number < 0) {
     
-    Serial.print("+ Unknown Relay ");
-    Serial.print(number);
-    Serial.println("!");
+    Serial.println("+ Unknown Relay "+String(number)+"!");
     Serial.println("$ ERROR");
     return;
   }
 
   digitalWrite(relayPins[number], false);
 
-  Serial.print("+ Switch Relay ");
-  Serial.print(number);
-  Serial.println(" off!");
+  Serial.println("+ Switch Relay "+String(number)+" off!");
   Serial.println("$ OK");
 }
 
-// STOP COMMAND
+// ON COMMAND
 Command onCmd;
 void onCmdCallback(cmd* c) {
   Command cmd(c);
@@ -49,18 +45,38 @@ void onCmdCallback(cmd* c) {
   int number = (int) numberArgument.getValue().toInt();
   if(number > relayPinsSize - 1 || number < 0) {
     
-    Serial.print("+ Unknown Relay ");
-    Serial.print(number);
-    Serial.println("!");
+    Serial.println("+ Unknown Relay "+String(number)+"!");
     Serial.println("$ ERROR");
     return;
   }
 
   digitalWrite(relayPins[number], true);
 
-  Serial.print("+ Switch Relay ");
-  Serial.print(number);
-  Serial.println(" on!");
+  Serial.println("+ Switch Relay "+String(number)+" on!");
+  Serial.println("$ OK");
+}
+
+
+// STATE COMMAND
+Command stateCmd;
+void stateCmdCallback(cmd* c) {
+  Command cmd(c);
+  Argument numberArgument = cmd.getArgument("number");
+  int number = (int) numberArgument.getValue().toInt();
+  if(number > relayPinsSize - 1 || number < 0) {
+    Serial.println("+ Unknown Relay "+String(number)+"!");
+    Serial.println("$ ERROR");
+    return;
+  }
+
+
+  String message = "";
+  if(digitalRead(relayPins[number])) {
+    message += "on";
+  } else {
+    message += "off";
+  }
+  Serial.println("+ State Relay " + String(number) + " is " + message + "!");
   Serial.println("$ OK");
 }
 
@@ -79,7 +95,7 @@ void errorCallback(cmd_error* e) {
 }
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial.println("Initializing...");
 
   ping = cli.addCmd("ping", pingCallback);
@@ -89,6 +105,9 @@ void setup() {
   
   offCmd = cli.addCmd("off", offCmdCallback);
   offCmd.addArgument("number");
+  
+  stateCmd = cli.addCmd("state", stateCmdCallback);
+  stateCmd.addArgument("number");
   
   cli.setOnError(errorCallback);
 

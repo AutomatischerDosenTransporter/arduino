@@ -1,14 +1,10 @@
-/**
-Speed 1 = Every Programm Zyklen
-Speed 0.5 = Alle zwei Program Zyklen
-*/
 #include <SimpleCLI.h>
-#include <Encoder.h>    // Verwendung der  Bibliothek 
+#include <Encoder.h>    // Verwendung der Bibliothek https://github.com/PaulStoffregen/Encoder
 
 struct Motor {
   int stepPin; 
   int dirPin;
-  float speed; // in Steps per Second
+  float speed;
   long encoder;
   long encoderOld;
   String name;
@@ -35,60 +31,51 @@ Command ping;
 void pingCallback(cmd* c) {
     Command cmd(c); // Create wrapper object
 
-    Serial.println("Pong!");
+    Serial.println("+ Pong!");
+    Serial.println("$ OK");
 }
 
 // ENCODER COMMAND
 Command encoderCmd;
 void encoderCmdCallback(cmd* c) {
   Command cmd(c);
-  Argument axisArgument      = cmd.getArgument("axis");
-  String axis = axisArgument.getValue();
+  Argument sideArgument      = cmd.getArgument("side");
+  String side = sideArgument.getValue();
 
-  
-  Serial.print("+ Encoder ");
-  Serial.print(axis);
-  Serial.print(" axis is at: ");
-
-  if(axis.equals("left")) {
-      Serial.println(leftMotor.encoder);
+  if(side.equals("left")) {
+      Serial.println("+ Encoder "+side+" side is at: "+leftMotor.encoder);
+      Serial.println("$ OK " + leftMotor.encoder);
   } else 
-  if(axis.equals("right")) {
-      Serial.println(rightMotor.encoder);
+  if(side.equals("right")) {
+      Serial.println("+ Encoder "+side+" side is at: "+rightMotor.encoder);
+      Serial.println("$ OK " + rightMotor.encoder);
   } else {
-      Serial.print("+ Unkown axis: ");
-      Serial.println(axis);
+      Serial.println("+ Unkown side: "+side);
       Serial.println("$ ERROR");
-      return;
   }
-
-  Serial.println("$ OK");
 }
 
 // STOP COMMAND
 Command stopCmd;
 void stopCmdCallback(cmd* c) {
   Command cmd(c);
-  Argument axisArgument      = cmd.getArgument("axis");
-  String axis = axisArgument.getValue();
+  Argument sideArgument      = cmd.getArgument("side");
+  String side = sideArgument.getValue();
 
-  if(axis.equals("left")) {
+  if(side.equals("left")) {
       leftMotor.speed = 0;
       leftMotor.lastActivation = millis();
   } else 
-  if(axis.equals("right")) {
+  if(side.equals("right")) {
       rightMotor.speed = 0;
       rightMotor.lastActivation = millis();
   } else {
-      Serial.print("+ Unkown axis: ");
-      Serial.println(axis);
+      Serial.println("+ Unkown side: "+side);
       Serial.println("$ ERROR");
       return;
   }
 
-  Serial.print("+ Stoped ");
-  Serial.print(axis);
-  Serial.println(" axis!");
+  Serial.println("+ Stoped "+side+" side!");
   Serial.println("$ OK");
 }
 
@@ -96,31 +83,26 @@ void stopCmdCallback(cmd* c) {
 Command speedCmd;
 void speedCmdCallback(cmd* c) {
   Command cmd(c);
-  Argument axisArgument      = cmd.getArgument("axis");
+  Argument sideArgument      = cmd.getArgument("side");
   Argument speedArgument      = cmd.getArgument("speed");
-  String axis = axisArgument.getValue();
+  String side = sideArgument.getValue();
   float speed = speedArgument.getValue().toFloat();
 
-  if(axis.equals("right")) {
+  if(side.equals("right")) {
       rightMotor.speed = speed;
       rightMotor.lastActivation = millis();
   } else 
-  if(axis.equals("left")) {
+  if(side.equals("left")) {
       leftMotor.speed = speed;
       leftMotor.lastActivation = millis();
   } else 
   {
-      Serial.print("+ Unkown axis: ");
-      Serial.println(axis);
+      Serial.println("+ Unkown side: "+side);
       Serial.println("$ ERROR");
       return;
   }
 
-  Serial.print("+ Set speed of ");
-  Serial.print(axis);
-  Serial.print(" axis to ");
-  Serial.print(speed);
-  Serial.println(" !");
+  Serial.println("+ Set speed of "+side+" side to "+speed+" !");
   Serial.println("$ OK");
 }
 
@@ -128,13 +110,10 @@ void speedCmdCallback(cmd* c) {
 void errorCallback(cmd_error* e) {
     CommandError cmdError(e); // Create wrapper object
 
-    Serial.print("ERROR: ");
-    Serial.println(cmdError.toString());
+    Serial.println("$ ERROR "+cmdError.toString());
 
     if (cmdError.hasCommand()) {
-        Serial.print("Did you mean \"");
-        Serial.print(cmdError.getCommand().toString());
-        Serial.println("\"?");
+        Serial.println("+ Did you mean \""+cmdError.getCommand().toString()+"\"?");
     }
 }
 
@@ -142,21 +121,21 @@ void initMotor(Motor motor);
 Motor executeMotor(Motor motor);
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   delay(500);
   Serial.println("Initializing...");
 
   ping = cli.addCmd("ping", pingCallback);
   
   stopCmd = cli.addCmd("stop", stopCmdCallback);
-  stopCmd.addArgument("axis");
+  stopCmd.addArgument("side");
   
   speedCmd = cli.addCmd("speed", speedCmdCallback);
-  speedCmd.addArgument("axis");
+  speedCmd.addArgument("side");
   speedCmd.addArgument("speed");
   
   encoderCmd = cli.addCmd("encoder", encoderCmdCallback);
-  encoderCmd.addArgument("axis");
+  encoderCmd.addArgument("side");
   
   cli.setOnError(errorCallback);
 
@@ -190,8 +169,7 @@ void checkSerial() {
         String input = Serial.readStringUntil('\n');
 
         // Echo the user input
-        Serial.print("# ");
-        Serial.println(input);
+        Serial.println("# "+input);
 
         // Parse the user input into the CLI
         cli.parse(input);
@@ -210,17 +188,12 @@ Motor executeMotor(Motor motor) {
   if(millis() - motor.lastActivation > 1000 && motor.speed != 0) {
     motor.speed = 0;
      
-    Serial.print("& Emergency ");
-    Serial.print(motor.name);
-    Serial.print(" motor stop!");
+    Serial.println("& Emergency "+motor.name+" motor stop!");
   }
 
   if(motor.encoderOld != motor.encoder) {
     motor.encoderOld = motor.encoder;
-    Serial.print("& Encoder ");
-    Serial.print(motor.name);
-    Serial.print(" ");
-    Serial.println(motor.encoder);
+    Serial.println("& Encoder "+motor.name+" "+motor.encoder);
   }
 
   float speed = motor.speed;
@@ -231,8 +204,7 @@ Motor executeMotor(Motor motor) {
     digitalWrite(motor.dirPin, false);
   }
 
-  float digitalSpeed = motor.speed;
-  int analogSpeed = (int)(digitalSpeed * 255.0);
+  int analogSpeed = (int)(speed * 255.0);
   analogWrite(motor.stepPin, analogSpeed);
 
   return motor;
